@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Basit Online Oyun</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: white;
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+    <script src="https://code.playcanvas.com/playcanvas-stable.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <canvas id="application"></canvas>
+    <script>
+        var socket = io();
+        var boxes = {};
+        var app = new pc.Application(document.getElementById('application'), {
+            mouse: new pc.Mouse(document.body),
+            keyboard: new pc.Keyboard(window)
+        });
+        app.start();
+        app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+        app.setCanvasResolution(pc.RESOLUTION_AUTO);
+        window.addEventListener('resize', function () {
+            app.resizeCanvas();
+        });
+        var camera = new pc.Entity('camera');
+        camera.addComponent('camera', {
+            clearColor: new pc.Color(1, 1, 1)
+        });
+        app.root.addChild(camera);
+        camera.setPosition(0, 0, 10);
+        var blackMaterial = new pc.StandardMaterial();
+        blackMaterial.diffuse = new pc.Color(0, 0, 0);
+        blackMaterial.update();
+        function createBoxForPlayer(id) {
+            var box = new pc.Entity('box-' + id);
+            box.addComponent('model', {
+                type: 'box'
+            });
+            box.model.material = blackMaterial;
+            app.root.addChild(box);
+            box.setPosition(0, 0, 0);
+            boxes[id] = box;
+        }
+        socket.on('connect', function() {
+            createBoxForPlayer(socket.id);
+        });
+        socket.on('hareket', function(data) {
+            updateBoxPosition(data.id, data.x, data.y, data.z);
+        });
+        socket.on('kullanici_cikti', function(data) {
+            if (boxes[data.id]) {
+                app.root.removeChild(boxes[data.id]);
+                delete boxes[data.id];
+            }
+        });
+        app.keyboard.on('keydown', function (e) {
+            var hiz = 0.1;
+            var pozisyon = boxes[socket.id].getPosition();
+            if (e.key === pc.KEY_LEFT) {
+                pozisyon.x -= hiz;
+            } else if (e.key === pc.KEY_RIGHT) {
+                pozisyon.x += hiz;
+            } else if (e.key === pc.KEY_UP) {
+                pozisyon.y += hiz;
+            } else if (e.key === pc.KEY_DOWN) {
+                pozisyon.y -= hiz;
+            }
+            updateBoxPosition(socket.id, pozisyon.x, pozisyon.y, pozisyon.z);
+            socket.emit('hareket', { id: socket.id, x: pozisyon.x, y: pozisyon.y, z: pozisyon.z });
+        });
+        function updateBoxPosition(id, x, y, z) {
+            if (!boxes[id]) {
+                createBoxForPlayer(id);
+            }
+            boxes[id].setPosition(x, y, z);
+        }
+    </script>
+</body>
+</html>
